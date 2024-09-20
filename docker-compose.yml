@@ -1,0 +1,62 @@
+name: myapp
+
+networks:
+  myapp:
+    driver: bridge
+
+services:
+  postgres:
+    image: postgres:12
+    container_name: postgres
+    hostname: postgres
+    command: -c fsync=off -c full_page_writes=off
+    restart: always
+    environment:
+      POSTGRES_USER: userdb
+      POSTGRES_PASSWORD: passworddb
+      POSTGRES_DB: test
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U userdb -d test"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    volumes:
+      - ./data:/var/lib/postgresql/data
+      - ./initdb:/docker-entrypoint-initdb.d
+    ports:
+      - 5432:5432
+    networks:
+      - myapp
+
+  rabbitmq:
+    image: rabbitmq:management
+    container_name: rabbitmq
+    hostname: rabbitmq
+    restart: always
+    environment:
+      - RABBITMQ_DEFAULT_USER=userdb
+      - RABBITMQ_DEFAULT_PASS=passworddb
+      - RABBITMQ_SERVER_ADDITIONAL_ERL_ARGS=-rabbit log_levels [{connection,error},{default,error}] disk_free_limit 2147483648
+    depends_on:
+      - postgres
+    volumes:
+      - ./rabbitmq:/var/lib/rabbitmq
+    ports:
+      - 15672:15672
+      - 5672:5672
+    networks:
+      - myapp
+
+  publisher:
+    container_name: publisher
+    build:
+      dockerfile: ./Dockerfile
+    networks:
+      - myapp
+
+#  handler:
+#    container_name: handler
+#    build:
+#      dockerfile: ./DockerfileHandler
+#   networks:
+#      - myapp
